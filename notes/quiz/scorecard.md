@@ -18,6 +18,22 @@ continuing from the last question, prioritizing weak areas.
 | 3 | KV math micro-drill (40L/8KVh/128/fp16) | KV cache math | 5 | (a) 0.16384MB ✅ (b) 1.28GB ✅ (c) ~15.6 ✅ (d) fp8 doubles → ~31, said ~33 close; reasoning perfect. KV math locked in. |
 | 4 | Batching throughput vs latency call | Batching/SA | 2 | Conflated tradeoff with static/dynamic config; "increase batch to fix slow tokens" backwards. Taught: weight-read amortization (batch↑ → throughput↑/cost↓ but TPOT↑); online vs offline decides; raise batch to TPOT SLA then stop. Re-test recommended. |
 
+## KEY SA LESSON (learned in Roleplay 1)
+**Qualify a workload on TWO axes, not one:**
+- VOLUME (how many): requests/day, peak req/s, traffic shape → drives # GPUs/replicas
+- SIZE (how big): input + output tokens/request, avg AND p95 → drives KV cache, concurrency, memory
+- Volume without token-size is useless for sizing. Same 500k req/day is tiny at 500 tok vs memory-bound at 24k tok (RAG).
+- Ask input & output SEPARATELY: input→prefill/TTFT+starting KV; output→decode/slot-time+growing KV.
+- Mnemonic: "How many, how big, how fast, how good."
+- Cost model: Monthly cost = #replicas × GPUs/replica × $/GPU-hr × hours.
+  - Quantize → fewer GPUs/replica; Autoscale → fewer hours; Smaller model → both; Batch tune → fewer replicas.
+- Little's Law: concurrency = arrival_rate × slot_time; slot_time = TTFT + output_tokens×TPOT.
+
+## Roleplay log
+| # | Scenario | Discovery | Diagnose | Recommend | Comms | Notes |
+|---|----------|-----------|----------|-----------|-------|-------|
+| 1 | Expensive chatbot (in progress) | strong (asked deployment, hw, volume, traffic, model, SLA, precision, evals) | fp16→fp8 right | quant + overnight scale-down ✅; MIG misapplied; didn't quantify $ at first | good, collaborative | MISSED token-length discovery Q; reached for KV math before having token size. Paused to teach cost model. |
+
 ## Side topics covered (deep dives, not scored)
 - TTFT = queue + prefill; inference-time vs end-to-end (book p39); diagram saved to ttft_anatomy.png
 - p50→p99 gap = infra/variance (queue, cold starts, autoscaling), not hardware
